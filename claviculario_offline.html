@@ -405,17 +405,16 @@ function clearAll(){
 
 // ── EXPORT ───────────────────────────────────────────────
 function exportCSV(){
-  // Filtrar apenas movimentações de hoje entre 06:00 e 18:00
+  // Filtrar todas as movimentações de hoje (dia inteiro, qualquer horário)
   const today = new Date();
   const todayStr = today.toLocaleDateString('pt-BR');
-  const start = new Date(today); start.setHours(6,0,0,0);
-  const end   = new Date(today); end.setHours(18,0,0,0);
+  const startOfDay = new Date(today); startOfDay.setHours(0,0,0,0);
+  const endOfDay   = new Date(today); endOfDay.setHours(23,59,59,999);
 
   // Montar pares retirada → devolução do dia
-  // Estratégia: percorrer log do mais antigo ao mais novo para casar pares
   const logsToday = log.filter(l => {
     const d = new Date(l.time);
-    return d >= start && d <= end;
+    return d >= startOfDay && d <= endOfDay;
   });
 
   // Agrupar por chave: cada retirada casa com a devolução mais próxima depois dela
@@ -440,7 +439,7 @@ function exportCSV(){
   pairs.sort((a,b) => a.takenAt - b.takenAt);
 
   if (!pairs.length) {
-    toast('Nenhuma movimentação hoje (06h–18h)');
+    toast('Nenhuma movimentação registrada hoje');
     return;
   }
 
@@ -448,7 +447,6 @@ function exportCSV(){
   let c = '\uFEFF';
   c += org ? `Organização: ${org}\n` : '';
   c += `Relatório do dia: ${todayStr}\n`;
-  c += `Período: 06:00 às 18:00\n`;
   c += `Gerado em: ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}\n\n`;
   c += 'Nº da Chave;Descrição;Quem pegou;Horário de retirada;Horário de devolução\n';
   pairs.forEach(p => {
