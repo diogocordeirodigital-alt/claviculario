@@ -403,68 +403,103 @@ function clearAll(){
   toast('Dados zerados');
 }
 
-// ── EXPORT ───────────────────────────────────────────────
+// ── EXPORT PDF ───────────────────────────────────────────
 function exportCSV(){
-  // Filtrar todas as movimentações de hoje (dia inteiro, qualquer horário)
   const today = new Date();
-  const todayStr = today.toLocaleDateString('pt-BR');
+  const todayStr = today.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+  const todayStrShort = today.toLocaleDateString('pt-BR');
+  const geradoEm = today.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
   const startOfDay = new Date(today); startOfDay.setHours(0,0,0,0);
   const endOfDay   = new Date(today); endOfDay.setHours(23,59,59,999);
 
-  // Montar pares retirada → devolução do dia
-  const logsToday = log.filter(l => {
-    const d = new Date(l.time);
-    return d >= startOfDay && d <= endOfDay;
-  });
+  const logsToday = log.filter(l=>{ const d=new Date(l.time); return d>=startOfDay&&d<=endOfDay; });
 
-  // Agrupar por chave: cada retirada casa com a devolução mais próxima depois dela
   const pairs = [];
-  const taken = {}; // key -> registro de retirada pendente
-  // log está em ordem decrescente; inverter para processar cronologicamente
+  const taken = {};
   const chrono = [...logsToday].reverse();
-  chrono.forEach(l => {
-    if (l.action === 'taken') {
-      taken[l.key] = l;
-    } else if (l.action === 'returned' && taken[l.key]) {
-      pairs.push({ key: l.key, person: taken[l.key].person, takenAt: taken[l.key].time, returnedAt: l.time });
+  chrono.forEach(l=>{
+    if(l.action==='taken'){ taken[l.key]=l; }
+    else if(l.action==='returned'&&taken[l.key]){
+      pairs.push({key:l.key,person:taken[l.key].person,takenAt:taken[l.key].time,returnedAt:l.time});
       delete taken[l.key];
     }
   });
-  // Retiradas sem devolução ainda (chave ainda fora)
-  Object.values(taken).forEach(l => {
-    pairs.push({ key: l.key, person: l.person, takenAt: l.time, returnedAt: null });
-  });
+  Object.values(taken).forEach(l=>{ pairs.push({key:l.key,person:l.person,takenAt:l.time,returnedAt:null}); });
+  pairs.sort((a,b)=>a.takenAt-b.takenAt);
 
-  // Ordenar por horário de retirada
-  pairs.sort((a,b) => a.takenAt - b.takenAt);
+  if(!pairs.length){ toast('Nenhuma movimentação registrada hoje'); return; }
 
-  if (!pairs.length) {
-    toast('Nenhuma movimentação registrada hoje');
-    return;
-  }
+  const org = cfg.orgName || 'Claviculário Digital';
+  const total = pairs.length;
+  const devolvidas = pairs.filter(p=>p.returnedAt).length;
+  const pendentes  = pairs.filter(p=>!p.returnedAt).length;
 
-  const org = cfg.orgName || '';
-  let c = '\uFEFF';
-  c += org ? `Organização: ${org}\n` : '';
-  c += `Relatório do dia: ${todayStr}\n`;
-  c += `Gerado em: ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}\n\n`;
-  c += 'Nº da Chave;Descrição;Quem pegou;Horário de retirada;Horário de devolução\n';
-  pairs.forEach(p => {
-    const label = keys[p.key] ? keys[p.key].label : 'Chave '+p.key;
-    const ret = p.returnedAt ? new Date(p.returnedAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : 'Não devolvida';
+  const linhas = pairs.map((p,idx)=>{
+    const label = keys[p.key]?keys[p.key].label:'Chave '+p.key;
     const tak = new Date(p.takenAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-    c += `${p.key};"${label}";"${p.person}";"${tak}";"${ret}"\n`;
-  });
-  c += `\nTotal de movimentações: ${pairs.length}\n`;
-  c += `Devolvidas: ${pairs.filter(p=>p.returnedAt).length}\n`;
-  c += `Não devolvidas: ${pairs.filter(p=>!p.returnedAt).length}\n`;
+    const ret = p.returnedAt ? new Date(p.returnedAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '—';
+    const isPendente = !p.returnedAt;
+    const bg = idx%2===0 ? '#f9f8f6' : '#ffffff';
+    const retStyle = isPendente ? 'color:#8b2c2c;font-weight:600' : 'color:#2d5c3a;font-weight:600';
+    const pendBadge = isPendente ? ' <span style="font-size:9px;background:#fdf0f0;border:1px solid #e8c4c4;border-radius:3px;padding:1px 5px;color:#8b2c2c;margin-left:4px">PENDENTE</span>' : '';
+    return '<tr style="background:'+bg+'">'
+      +'<td style="text-align:center;font-weight:700;font-family:monospace">'+String(p.key).padStart(2,'0')+'</td>'
+      +'<td>'+label+'</td>'
+      +'<td>'+p.person+'</td>'
+      +'<td style="text-align:center;font-family:monospace">'+tak+'</td>'
+      +'<td style="text-align:center;font-family:monospace;'+retStyle+'">'+ret+pendBadge+'</td>'
+      +'</tr>';
+  }).join('');
 
-  const b = new Blob([c],{type:'text/csv;charset=utf-8'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(b);
-  a.download = 'relatorio_claviculario_'+today.toISOString().slice(0,10)+'.csv';
-  a.click();
-  toast('Relatório do dia exportado ✓');
+  const html = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">'
+    +'<title>Relatorio '+todayStrShort+'</title>'
+    +'<style>'
+    +'@page{size:A4;margin:18mm 16mm 16mm 16mm}'
+    +'*{box-sizing:border-box;margin:0;padding:0}'
+    +'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#1a1814;font-size:12px;background:#fff}'
+    +'.header{background:#2d4a3e;color:#fff;padding:20px 24px 18px;border-radius:6px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-end}'
+    +'.hl .org{font-size:10px;opacity:.7;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}'
+    +'.hl .titulo{font-size:19px;font-weight:700;letter-spacing:-.02em}'
+    +'.hl .data{font-size:12px;opacity:.75;margin-top:4px;text-transform:capitalize}'
+    +'.hr{text-align:right;font-size:11px;opacity:.7;line-height:1.8}'
+    +'.resumo{display:flex;gap:10px;margin-bottom:18px}'
+    +'.card{flex:1;border:1px solid #ddd9d0;border-radius:6px;padding:12px 14px;background:#f9f8f6}'
+    +'.cl{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:#9e9b95;margin-bottom:4px}'
+    +'.cv{font-size:22px;font-weight:700;letter-spacing:-.02em}'
+    +'.cv.t{color:#2d4a3e}.cv.ok{color:#2d5c3a}.cv.p{color:#8b2c2c}'
+    +'table{width:100%;border-collapse:collapse;border:1px solid #ddd9d0;border-radius:6px;overflow:hidden}'
+    +'thead tr{background:#2d4a3e;color:#fff}'
+    +'thead th{padding:10px 12px;text-align:left;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}'
+    +'thead th:first-child{text-align:center;width:58px}'
+    +'thead th:nth-child(4),thead th:nth-child(5){text-align:center;width:108px}'
+    +'tbody td{padding:9px 12px;border-bottom:1px solid #ece9e2;font-size:12px;vertical-align:middle}'
+    +'tbody tr:last-child td{border-bottom:none}'
+    +'.footer{margin-top:18px;padding-top:12px;border-top:1px solid #ddd9d0;display:flex;justify-content:space-between;font-size:10px;color:#9e9b95}'
+    +'@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}'
+    +'</style></head><body>'
+    +'<div class="header">'
+    +'<div class="hl"><div class="org">'+org+'</div>'
+    +'<div class="titulo">Relatório de Movimentação de Chaves</div>'
+    +'<div class="data">'+todayStr+'</div></div>'
+    +'<div class="hr">Gerado às '+geradoEm+'<br>'+total+' registro'+(total!==1?'s':'')+'</div>'
+    +'</div>'
+    +'<div class="resumo">'
+    +'<div class="card"><div class="cl">Total do dia</div><div class="cv t">'+total+'</div></div>'
+    +'<div class="card"><div class="cl">Devolvidas</div><div class="cv ok">'+devolvidas+'</div></div>'
+    +'<div class="card"><div class="cl">Não devolvidas</div><div class="cv p">'+pendentes+'</div></div>'
+    +'</div>'
+    +'<table><thead><tr>'
+    +'<th>Chave</th><th>Descrição</th><th>Responsável</th><th>Retirada</th><th>Devolução</th>'
+    +'</tr></thead><tbody>'+linhas+'</tbody></table>'
+    +'<div class="footer"><span>'+org+' — Claviculário Digital</span>'
+    +'<span>Relatório de '+todayStrShort+' gerado às '+geradoEm+'</span></div>'
+    +'<script>window.onload=function(){window.print();};<\/script>'
+    +'</body></html>';
+
+  const w = window.open('','_blank');
+  w.document.write(html);
+  w.document.close();
+  toast('Relatório aberto — salve como PDF ✓');
 }
 
 function exportCompleto(){
