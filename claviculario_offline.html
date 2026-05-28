@@ -100,6 +100,27 @@ button:hover{background:var(--surface2);border-color:var(--border2)}
 .toast{position:fixed;bottom:22px;right:22px;background:var(--text);color:#fff;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:500;z-index:300;transform:translateY(16px);opacity:0;transition:all .22s;pointer-events:none}
 .toast.show{transform:translateY(0);opacity:1}
 
+
+/* MULTI-SELECT */
+.kc.selected{border-color:var(--accent);background:var(--accent-light);box-shadow:0 0 0 2px var(--accent)}
+.kc.selected .knum{color:var(--accent)}
+.kc.selected .kname{color:var(--accent)}
+.kc.selected .kicon::after{content:'✓';position:absolute;top:3px;right:4px;font-size:9px;font-weight:700;color:var(--accent)}
+.kc{position:relative}
+.multibar{position:fixed;bottom:0;left:0;right:0;background:var(--accent);color:#fff;padding:14px 1.5rem;display:flex;align-items:center;justify-content:space-between;gap:12px;z-index:100;transform:translateY(100%);transition:transform .25s ease;box-shadow:0 -4px 20px rgba(0,0,0,.15)}
+.multibar.show{transform:translateY(0)}
+.multibar-info{font-size:14px;font-weight:500}
+.multibar-info span{font-size:12px;opacity:.75;margin-left:6px}
+.multibar-keys{font-size:11px;opacity:.7;margin-top:2px;max-width:400px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.multibar-actions{display:flex;gap:8px;flex-shrink:0}
+.mbbtn{padding:8px 16px;font-size:13px;font-family:var(--font);font-weight:600;border-radius:7px;cursor:pointer;border:none;white-space:nowrap}
+.mbbtn-cancel{background:rgba(255,255,255,.15);color:#fff}
+.mbbtn-cancel:hover{background:rgba(255,255,255,.25)}
+.mbbtn-ok{background:#fff;color:var(--accent)}
+.mbbtn-ok:hover{background:#f0f0f0}
+.btn-multi{background:var(--accent-light);color:var(--accent);border-color:var(--accent)!important}
+.btn-multi.active{background:var(--accent);color:#fff}
+
 @media(max-width:560px){
   .header{padding:0 1rem}.hstats{display:none}
   .toolbar,.gwrap,.panel{padding-left:1rem;padding-right:1rem}
@@ -157,6 +178,10 @@ button:hover{background:var(--surface2);border-color:var(--border2)}
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
     Histórico completo
   </button>
+  <button id="btn-multi" onclick="toggleMulti()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+    Selecionar várias
+  </button>
   <button onclick="openConfig()">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 0 0 4.93 19.07M19.07 4.93l-2.83 2.83M4.93 19.07l2.83-2.83"/></svg>
     Config
@@ -174,6 +199,21 @@ button:hover{background:var(--surface2);border-color:var(--border2)}
     Chaves em uso agora
   </div>
   <div id="active-log"></div>
+</div>
+
+
+<!-- MULTI-SELECT BAR -->
+<div class="multibar" id="multibar">
+  <div>
+    <div class="multibar-info" id="mb-info">0 chaves selecionadas</div>
+    <div class="multibar-keys" id="mb-keys"></div>
+  </div>
+  <div class="multibar-actions">
+    <button class="mbbtn mbbtn-cancel" onclick="cancelMulti()">Cancelar</button>
+    <button class="mbbtn mbbtn-ok" id="mb-ok" onclick="openMultiTake()" disabled>
+      Registrar retirada
+    </button>
+  </div>
 </div>
 
 <div class="overlay" id="overlay" onclick="if(event.target===this)closeModal()">
@@ -288,8 +328,101 @@ function renderActiveLog(){
   c.innerHTML=html;
 }
 
+// ── MULTI SELECT ─────────────────────────────────────────
+let multiMode = false;
+let selected = new Set();
+
+function toggleMulti(){
+  multiMode = !multiMode;
+  const btn = document.getElementById('btn-multi');
+  if(multiMode){
+    btn.classList.add('active');
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Modo seleção ativo';
+  } else {
+    btn.classList.remove('active');
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> Selecionar várias';
+    selected.clear();
+    updateMultiBar();
+    renderGrid();
+  }
+}
+
+function toggleSelect(i){
+  if(selected.has(i)) selected.delete(i);
+  else selected.add(i);
+  updateMultiBar();
+  renderGrid();
+}
+
+function updateMultiBar(){
+  const bar = document.getElementById('multibar');
+  const info = document.getElementById('mb-info');
+  const keysEl = document.getElementById('mb-keys');
+  const okBtn = document.getElementById('mb-ok');
+  const n = selected.size;
+  if(n > 0){
+    bar.classList.add('show');
+    info.textContent = n + (n===1?' chave selecionada':' chaves selecionadas');
+    const nums = [...selected].sort((a,b)=>a-b).map(i=>'#'+pad(i)).join(', ');
+    keysEl.textContent = nums;
+    okBtn.disabled = false;
+  } else {
+    bar.classList.remove('show');
+    okBtn.disabled = true;
+  }
+}
+
+function cancelMulti(){
+  multiMode = false;
+  selected.clear();
+  const btn = document.getElementById('btn-multi');
+  btn.classList.remove('active');
+  btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> Selecionar várias';
+  updateMultiBar();
+  renderGrid();
+}
+
+function openMultiTake(){
+  const n = selected.size;
+  if(!n) return;
+  const nums = [...selected].sort((a,b)=>a-b).map(i=>'#'+pad(i)).join(', ');
+  const m = document.getElementById('modal-body');
+  m.innerHTML = '<div class="mh2">🔑 Retirada em lote — '+n+' chave'+(n>1?'s':'')+'</div>'
+    +'<div class="msub" style="margin-bottom:.6rem">Chaves selecionadas:</div>'
+    +'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-family:monospace;font-size:12px;color:var(--text2);margin-bottom:1rem;line-height:1.8">'+nums+'</div>'
+    +'<div class="field"><label>Nome de quem está retirando *</label>'
+    +'<input type="text" id="mp" placeholder="Ex: João Silva" oninput="ce()" autofocus></div>'
+    +'<div class="mact">'
+    +'<button onclick="closeModal()">Cancelar</button>'
+    +'<button class="btn-a" id="mcnf" onclick="doTakeMulti()" disabled>Registrar '+n+' chave'+(n>1?'s':'')+'</button>'
+    +'</div>';
+  document.getElementById('overlay').classList.add('open');
+}
+
+function doTakeMulti(){
+  const person = document.getElementById('mp').value.trim();
+  if(!person) return;
+  const now = Date.now();
+  selected.forEach(i=>{
+    if(gs(keys[i])==='available'){
+      keys[i] = {status:'taken', person, takenAt:now, label:keys[i].label};
+      log.unshift({key:i, person, action:'taken', time:now});
+    }
+  });
+  const n = selected.size;
+  save(); cancelMulti(); closeModal(); render();
+  toast(n+' chave'+(n>1?'s registradas':' registrada')+' para '+person+' ✓');
+}
+
 // ── OPEN KEY ─────────────────────────────────────────────
 function openKey(i){
+  // Se está em modo multi-seleção, apenas marca/desmarca a chave
+  if(multiMode){
+    const s=gs(keys[i]);
+    if(s!=='available'){ toast('Chave #'+pad(i)+' já está em uso'); return; }
+    toggleSelect(i);
+    return;
+  }
   const k=keys[i],s=gs(k),m=document.getElementById('modal-body');
   if(s==='available'){
     m.innerHTML=`<div class="mh2">🔑 Retirar Chave #${pad(i)}</div>
