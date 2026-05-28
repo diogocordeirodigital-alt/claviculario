@@ -149,9 +149,13 @@ button:hover{background:var(--surface2);border-color:var(--border2)}
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
     Histórico
   </button>
-  <button onclick="exportCSV()">
+  <button class="btn-a" onclick="exportCSV()">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-    Exportar CSV
+    Relatório do dia
+  </button>
+  <button onclick="exportCompleto()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    Histórico completo
   </button>
   <button onclick="openConfig()">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 0 0 4.93 19.07M19.07 4.93l-2.83 2.83M4.93 19.07l2.83-2.83"/></svg>
@@ -401,6 +405,71 @@ function clearAll(){
 
 // ── EXPORT ───────────────────────────────────────────────
 function exportCSV(){
+  // Filtrar apenas movimentações de hoje entre 06:00 e 18:00
+  const today = new Date();
+  const todayStr = today.toLocaleDateString('pt-BR');
+  const start = new Date(today); start.setHours(6,0,0,0);
+  const end   = new Date(today); end.setHours(18,0,0,0);
+
+  // Montar pares retirada → devolução do dia
+  // Estratégia: percorrer log do mais antigo ao mais novo para casar pares
+  const logsToday = log.filter(l => {
+    const d = new Date(l.time);
+    return d >= start && d <= end;
+  });
+
+  // Agrupar por chave: cada retirada casa com a devolução mais próxima depois dela
+  const pairs = [];
+  const taken = {}; // key -> registro de retirada pendente
+  // log está em ordem decrescente; inverter para processar cronologicamente
+  const chrono = [...logsToday].reverse();
+  chrono.forEach(l => {
+    if (l.action === 'taken') {
+      taken[l.key] = l;
+    } else if (l.action === 'returned' && taken[l.key]) {
+      pairs.push({ key: l.key, person: taken[l.key].person, takenAt: taken[l.key].time, returnedAt: l.time });
+      delete taken[l.key];
+    }
+  });
+  // Retiradas sem devolução ainda (chave ainda fora)
+  Object.values(taken).forEach(l => {
+    pairs.push({ key: l.key, person: l.person, takenAt: l.time, returnedAt: null });
+  });
+
+  // Ordenar por horário de retirada
+  pairs.sort((a,b) => a.takenAt - b.takenAt);
+
+  if (!pairs.length) {
+    toast('Nenhuma movimentação hoje (06h–18h)');
+    return;
+  }
+
+  const org = cfg.orgName || '';
+  let c = '\uFEFF';
+  c += org ? `Organização: ${org}\n` : '';
+  c += `Relatório do dia: ${todayStr}\n`;
+  c += `Período: 06:00 às 18:00\n`;
+  c += `Gerado em: ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}\n\n`;
+  c += 'Nº da Chave;Descrição;Quem pegou;Horário de retirada;Horário de devolução\n';
+  pairs.forEach(p => {
+    const label = keys[p.key] ? keys[p.key].label : 'Chave '+p.key;
+    const ret = p.returnedAt ? new Date(p.returnedAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : 'Não devolvida';
+    const tak = new Date(p.takenAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    c += `${p.key};"${label}";"${p.person}";"${tak}";"${ret}"\n`;
+  });
+  c += `\nTotal de movimentações: ${pairs.length}\n`;
+  c += `Devolvidas: ${pairs.filter(p=>p.returnedAt).length}\n`;
+  c += `Não devolvidas: ${pairs.filter(p=>!p.returnedAt).length}\n`;
+
+  const b = new Blob([c],{type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(b);
+  a.download = 'relatorio_claviculario_'+today.toISOString().slice(0,10)+'.csv';
+  a.click();
+  toast('Relatório do dia exportado ✓');
+}
+
+function exportCompleto(){
   const org=cfg.orgName||'';
   let c='\uFEFF';
   c+=org?`Organização: ${org}\n`:'';
@@ -417,9 +486,9 @@ function exportCSV(){
   const b=new Blob([c],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(b);
-  a.download='claviculario_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.download='historico_completo_'+new Date().toISOString().slice(0,10)+'.csv';
   a.click();
-  toast('CSV exportado');
+  toast('Histórico completo exportado');
 }
 
 // ── MISC ─────────────────────────────────────────────────
