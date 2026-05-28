@@ -101,6 +101,16 @@ button:hover{background:var(--surface2);border-color:var(--border2)}
 .toast.show{transform:translateY(0);opacity:1}
 
 
+/* TURNO */
+.hpill-turno{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.25);cursor:pointer}
+.hpill-turno:hover{background:rgba(255,255,255,.28)}
+.hpill-turno .tp-nome{font-weight:600;max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.turno-banner{background:var(--accent-light);border-bottom:1px solid #b8d4c4;padding:8px 1.5rem;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--accent)}
+.turno-banner b{font-weight:600}
+.turno-banner .tb-since{font-size:11px;opacity:.75;margin-left:4px}
+.turno-banner .tb-btn{margin-left:auto;padding:4px 12px;font-size:12px;font-family:var(--font);font-weight:600;border:1px solid var(--accent);border-radius:6px;background:transparent;color:var(--accent);cursor:pointer}
+.turno-banner .tb-btn:hover{background:var(--accent);color:#fff}
+
 /* MULTI-SELECT */
 .kc.selected{border-color:var(--accent);background:var(--accent-light);box-shadow:0 0 0 2px var(--accent)}
 .kc.selected .knum{color:var(--accent)}
@@ -149,11 +159,23 @@ button:hover{background:var(--surface2);border-color:var(--border2)}
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
       <span id="h-taken">—</span> em uso
     </div>
+    <div class="hpill hpill-turno" onclick="openTurno()" title="Clique para trocar o porteiro">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span id="h-porteiro">Sem porteiro</span>
+    </div>
     <div class="hpill hpill-warn" id="h-wpill" style="display:none" onclick="setFilter('alert')">
       ⚠️ <span id="h-walert">0</span> alerta +5h
     </div>
   </div>
 </div>
+
+<!-- BANNER DE TURNO -->
+<div class="turno-banner" id="turno-banner" style="display:none">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+  <span>Porteiro de plantão: <b id="tb-nome">—</b> <span class="tb-since" id="tb-since"></span></span>
+  <button class="tb-btn" onclick="openTurno()">Trocar turno</button>
+</div>
+
 
 <div class="toolbar">
   <div class="sw">
@@ -226,17 +248,18 @@ button:hover{background:var(--surface2);border-color:var(--border2)}
 const SK = 'claviculario_v3';
 const ALERT_H = 5;
 let keys = {}, log = [], cfg = {orgName:'Minha Empresa', totalKeys:80};
+let turno = {porteiro:'', desde:null, historico:[]};
 
 // ── STORAGE ──────────────────────────────────────────────
 function load() {
   try {
     const raw = localStorage.getItem(SK);
-    if (raw) { const d=JSON.parse(raw); keys=d.keys||{}; log=d.log||[]; if(d.cfg) cfg=Object.assign(cfg,d.cfg); }
+    if (raw) { const d=JSON.parse(raw); keys=d.keys||{}; log=d.log||[]; if(d.cfg) cfg=Object.assign(cfg,d.cfg); if(d.turno) turno=Object.assign(turno,d.turno); }
   } catch(e){}
   for (let i=1;i<=80;i++) if(!keys[i]) keys[i]={status:'available',person:'',takenAt:null,label:'Chave '+i};
 }
 function save() {
-  try { localStorage.setItem(SK,JSON.stringify({keys,log,cfg})); } catch(e){}
+  try { localStorage.setItem(SK,JSON.stringify({keys,log,cfg,turno})); } catch(e){}
   document.getElementById('last-sync').textContent='Salvo às '+hm();
 }
 
@@ -326,6 +349,64 @@ function renderActiveLog(){
     </div>`;
   });
   c.innerHTML=html;
+}
+
+
+// ── TURNO / PONTO ────────────────────────────────────────
+function updateTurnoUI(){
+  const pill = document.getElementById('h-porteiro');
+  const banner = document.getElementById('turno-banner');
+  const tbNome = document.getElementById('tb-nome');
+  const tbSince = document.getElementById('tb-since');
+  if(turno.porteiro){
+    pill.textContent = turno.porteiro;
+    tbNome.textContent = turno.porteiro;
+    tbSince.textContent = turno.desde ? '· desde '+new Date(turno.desde).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '';
+    banner.style.display='flex';
+  } else {
+    pill.textContent = 'Sem porteiro';
+    banner.style.display='none';
+  }
+}
+
+function openTurno(){
+  const m=document.getElementById('modal-body');
+  const hist = (turno.historico||[]).slice(0,8).map(t=>
+    '<div style="font-size:12px;padding:6px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between">'
+    +'<span style="font-weight:500">'+t.porteiro+'</span>'
+    +'<span style="color:var(--text3)">'+new Date(t.desde).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})
+    +(t.ate?' → '+new Date(t.ate).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'<span style="color:var(--ok);font-size:11px;margin-left:4px">● ativo</span>')
+    +'</span></div>'
+  ).join('');
+  m.innerHTML='<div class="mh2">👮 Registro de Turno</div>'
+    +'<div class="msub">Porteiro que está assumindo o plantão agora</div>'
+    +(turno.porteiro?'<div style="background:var(--accent-light);border:1px solid #b8d4c4;border-radius:8px;padding:9px 13px;font-size:12px;color:var(--accent);margin-bottom:1rem">Plantão atual: <b>'+turno.porteiro+'</b></div>':'')
+    +'<div class="field"><label>Nome do porteiro *</label>'
+    +'<input type="text" id="tp-nome" placeholder="Ex: Carlos Oliveira" oninput="ctp()" autofocus></div>'
+    +(hist?'<div style="margin-top:.5rem"><div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Histórico de turnos</div>'+hist+'</div>':'')
+    +'<div class="mact">'
+    +'<button onclick="closeModal()">Cancelar</button>'
+    +'<button class="btn-a" id="tp-cnf" onclick="doTurno()" disabled>Assumir plantão</button>'
+    +'</div>';
+  document.getElementById('overlay').classList.add('open');
+}
+function ctp(){
+  document.getElementById('tp-cnf').disabled=!document.getElementById('tp-nome').value.trim();
+}
+function doTurno(){
+  const nome=document.getElementById('tp-nome').value.trim();
+  if(!nome)return;
+  const agora=Date.now();
+  // Encerra turno anterior
+  if(turno.porteiro&&turno.historico.length){
+    turno.historico[0].ate=agora;
+  }
+  // Abre novo turno
+  turno.historico.unshift({porteiro:nome,desde:agora,ate:null});
+  turno.porteiro=nome;
+  turno.desde=agora;
+  save();updateTurnoUI();closeModal();
+  toast('Plantão registrado para '+nome+' ✓');
 }
 
 // ── MULTI SELECT ─────────────────────────────────────────
@@ -614,9 +695,10 @@ function exportCSV(){
     +'<div class="hl"><div class="org">'+org+'</div>'
     +'<div class="titulo">Relatório de Movimentação de Chaves</div>'
     +'<div class="data">'+todayStr+'</div></div>'
-    +'<div class="hr">Gerado às '+geradoEm+'<br>'+total+' registro'+(total!==1?'s':'')+'</div>'
+    +'<div class="hr">Porteiro: '+(turno.porteiro||'Não registrado')+'<br>Gerado às '+geradoEm+'<br>'+total+' registro'+(total!==1?'s':'')+'</div>'
     +'</div>'
     +'<div class="resumo">'
+    +'<div class="card" style="background:#e8f0ec;border-color:#b8d4c4"><div class="cl" style="color:#2d4a3e">Porteiro de plantão</div><div style="font-size:15px;font-weight:700;color:#2d4a3e;margin-top:2px">'+(turno.porteiro||'Não registrado')+'</div></div>'
     +'<div class="card"><div class="cl">Total do dia</div><div class="cv t">'+total+'</div></div>'
     +'<div class="card"><div class="cl">Devolvidas</div><div class="cv ok">'+devolvidas+'</div></div>'
     +'<div class="card"><div class="cl">Não devolvidas</div><div class="cv p">'+pendentes+'</div></div>'
@@ -665,7 +747,7 @@ function toast(msg){
   t.textContent=msg;t.classList.add('show');
   clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),3000);
 }
-function render(){renderGrid();renderActiveLog();updateStats();}
+function render(){renderGrid();renderActiveLog();updateStats();updateTurnoUI();}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 
 // ── INIT ─────────────────────────────────────────────────
