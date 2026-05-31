@@ -101,6 +101,12 @@ button:hover{background:var(--surface2);border-color:var(--border2)}
 .toast.show{transform:translateY(0);opacity:1}
 
 
+/* TRANSFERÊNCIA */
+.btn-transfer{padding:7px 13px;font-size:13px;font-family:var(--font);font-weight:500;border:1px solid var(--warn-b);border-radius:7px;background:var(--warn-bg);color:var(--warn);cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .15s}
+.btn-transfer:hover{background:#f5e8c0}
+.transfer-hist{margin-top:8px;padding:8px 10px;background:var(--warn-bg);border:1px solid var(--warn-b);border-radius:7px;font-size:11px;color:var(--warn)}
+.transfer-hist b{font-weight:600}
+
 /* CALENDÁRIO */
 .cal-modal{width:380px!important;max-width:96vw!important}
 .cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
@@ -540,16 +546,29 @@ function openKey(i){
   } else {
     const el=elap(k.takenAt),isA=s==='alert';
     const ab=isA?`<div class="abox">⚠️ Esta chave está fora há mais de ${ALERT_H} horas! Verificar com <b>${k.person}</b>.</div>`:'';
+    // Histórico de transferências desta chave hoje
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const transfers = log.filter(l=>l.key===i&&l.action==='transfer'&&new Date(l.time)>=hoje);
+    const transferHist = transfers.length
+      ? '<div class="transfer-hist">🔄 Transferências hoje: '
+        + transfers.map(t=>'<b>'+t.de+'</b> → <b>'+t.para+'</b> às '+new Date(t.time).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})).join(' · ')
+        + '</div>'
+      : '';
     m.innerHTML=`<div class="mh2">🔒 Chave #${pad(i)} — em uso</div>
       <div class="msub">${k.label}</div>
       ${ab}
       <div class="infobox">
-        <div><b>Responsável:</b> ${k.person||'—'}</div>
+        <div><b>Responsável atual:</b> ${k.person||'—'}</div>
         <div><b>Retirada em:</b> ${fdt(k.takenAt)}</div>
         ${el?`<div><b>Tempo fora:</b> ${el}</div>`:''}
       </div>
-      <div class="mact">
+      ${transferHist}
+      <div class="mact" style="flex-wrap:wrap">
         <button onclick="closeModal()">Fechar</button>
+        <button class="btn-transfer" onclick="openTransfer(${i})">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+          Transferir responsável
+        </button>
         <button class="btn-a" onclick="doReturn(${i},null);closeModal()">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
           Registrar devolução
@@ -582,17 +601,57 @@ function doReturn(i,e){
   toast('Chave #'+pad(i)+' devolvida ✓');
 }
 
+
+// ── TRANSFERÊNCIA DE RESPONSÁVEL ─────────────────────────
+function openTransfer(i){
+  const k=keys[i];
+  const m=document.getElementById('modal-body');
+  m.innerHTML='<div class="mh2">🔄 Transferir Chave #'+pad(i)+'</div>'
+    +'<div class="msub">'+k.label+'</div>'
+    +'<div class="infobox" style="margin-bottom:1rem">'
+    +'<div><b>Responsável atual:</b> '+k.person+'</div>'
+    +'</div>'
+    +'<div class="field"><label>Novo responsável *</label>'
+    +'<input type="text" id="tr-novo" placeholder="Ex: Maria Souza" oninput="ctr()" autofocus></div>'
+    +'<div class="field"><label>Observação (opcional)</label>'
+    +'<input type="text" id="tr-obs" placeholder="Ex: Assumiu o turno da tarde"></div>'
+    +'<div class="mact">'
+    +'<button onclick="openKey('+i+')">Voltar</button>'
+    +'<button class="btn-a" id="tr-cnf" onclick="doTransfer('+i+')" disabled>Confirmar transferência</button>'
+    +'</div>';
+  document.getElementById('overlay').classList.add('open');
+}
+function ctr(){
+  document.getElementById('tr-cnf').disabled=!document.getElementById('tr-novo').value.trim();
+}
+function doTransfer(i){
+  const novo=document.getElementById('tr-novo').value.trim();
+  const obs=document.getElementById('tr-obs').value.trim();
+  if(!novo)return;
+  const anterior=keys[i].person;
+  log.unshift({key:i,person:novo,action:'transfer',de:anterior,para:novo,obs:obs||'',time:Date.now()});
+  keys[i].person=novo;
+  save();render();closeModal();
+  toast('Chave #'+pad(i)+' transferida para '+novo+' ✓');
+}
+
 // ── HISTORY ──────────────────────────────────────────────
 function openHistory(){
   const m=document.getElementById('modal-body');
   const r=log.slice(0,80);
-  let rows=r.map(l=>`<div class="hist-item">
-    <div class="hdot ${l.action}"></div>
-    <div>
-      <div style="font-weight:500">${l.person} <span class="hkey">· chave #${pad(l.key)}</span></div>
-      <div class="htime">${l.action==='taken'?'Retirada':'Devolução'}: ${fdt(l.time)}</div>
-    </div>
-  </div>`).join('');
+  let rows=r.map(l=>{
+    const isTransfer=l.action==='transfer';
+    const dotColor=isTransfer?'background:#c8a040':l.action==='taken'?'background:var(--danger)':'background:var(--ok)';
+    const label=isTransfer?'Transferência':'taken'===l.action?'Retirada':'Devolução';
+    const info=isTransfer?`<b>${l.de}</b> → <b>${l.para}</b>${l.obs?' · '+l.obs:''}`:(l.person);
+    return `<div class="hist-item">
+      <div class="hdot" style="${dotColor}"></div>
+      <div>
+        <div style="font-weight:500">${info} <span class="hkey">· chave #${pad(l.key)}</span></div>
+        <div class="htime">${label}: ${fdt(l.time)}</div>
+      </div>
+    </div>`;
+  }).join('');
   if(!rows)rows='<div class="empty">Nenhum registro ainda</div>';
   m.innerHTML=`<div class="mh2">📋 Histórico</div>
     <div class="msub">${log.length} movimentações registradas</div>
@@ -755,15 +814,20 @@ function exportCSV(dataAlvo){
 
   const pairs = [];
   const taken = {};
+  const transfersMap = {}; // key -> lista de transferências
   const chrono = [...logsToday].reverse();
   chrono.forEach(l=>{
     if(l.action==='taken'){ taken[l.key]=l; }
+    else if(l.action==='transfer'){
+      if(!transfersMap[l.key]) transfersMap[l.key]=[];
+      transfersMap[l.key].push(l);
+    }
     else if(l.action==='returned'&&taken[l.key]){
-      pairs.push({key:l.key,person:taken[l.key].person,takenAt:taken[l.key].time,returnedAt:l.time});
+      pairs.push({key:l.key,person:taken[l.key].person,takenAt:taken[l.key].time,returnedAt:l.time,transfers:transfersMap[l.key]||[]});
       delete taken[l.key];
     }
   });
-  Object.values(taken).forEach(l=>{ pairs.push({key:l.key,person:l.person,takenAt:l.time,returnedAt:null}); });
+  Object.values(taken).forEach(l=>{ pairs.push({key:l.key,person:l.person,takenAt:l.time,returnedAt:null,transfers:transfersMap[l.key]||[]}); });
   pairs.sort((a,b)=>a.takenAt-b.takenAt);
 
   if(!pairs.length){ toast('Nenhuma movimentação registrada hoje'); return; }
@@ -781,12 +845,19 @@ function exportCSV(dataAlvo){
     const bg = idx%2===0 ? '#f9f8f6' : '#ffffff';
     const retStyle = isPendente ? 'color:#8b2c2c;font-weight:600' : 'color:#2d5c3a;font-weight:600';
     const pendBadge = isPendente ? ' <span style="font-size:9px;background:#fdf0f0;border:1px solid #e8c4c4;border-radius:3px;padding:1px 5px;color:#8b2c2c;margin-left:4px">PENDENTE</span>' : '';
+    // Observações de transferência
+    const hasTransfer = p.transfers && p.transfers.length>0;
+    const obsTransfer = hasTransfer
+      ? p.transfers.map(t=>'🔄 '+new Date(t.time).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+' — '+t.de+' → '+t.para+(t.obs?' ('+t.obs+')':'')).join('<br>')
+      : '—';
+    const responsavelFinal = hasTransfer ? p.transfers[p.transfers.length-1].para : p.person;
     return '<tr style="background:'+bg+'">'
       +'<td style="text-align:center;font-weight:700;font-family:monospace">'+String(p.key).padStart(2,'0')+'</td>'
       +'<td>'+label+'</td>'
-      +'<td>'+p.person+'</td>'
+      +'<td>'+p.person+(hasTransfer?' <span style="font-size:9px;background:#fdf6e8;border:1px solid #e8d8a0;border-radius:3px;padding:1px 5px;color:#7a5c1a;margin-left:3px">→ '+responsavelFinal+'</span>':'')+'</td>'
       +'<td style="text-align:center;font-family:monospace">'+tak+'</td>'
       +'<td style="text-align:center;font-family:monospace;'+retStyle+'">'+ret+pendBadge+'</td>'
+      +'<td style="font-size:10px;color:#7a5c1a">'+obsTransfer+'</td>'
       +'</tr>';
   }).join('');
 
@@ -810,7 +881,7 @@ function exportCSV(dataAlvo){
     +'thead tr{background:#2d4a3e;color:#fff}'
     +'thead th{padding:10px 12px;text-align:left;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}'
     +'thead th:first-child{text-align:center;width:58px}'
-    +'thead th:nth-child(4),thead th:nth-child(5){text-align:center;width:108px}'
+    +'thead th:nth-child(4),thead th:nth-child(5){text-align:center;width:90px}'
     +'tbody td{padding:9px 12px;border-bottom:1px solid #ece9e2;font-size:12px;vertical-align:middle}'
     +'tbody tr:last-child td{border-bottom:none}'
     +'.footer{margin-top:18px;padding-top:12px;border-top:1px solid #ddd9d0;display:flex;justify-content:space-between;font-size:10px;color:#9e9b95}'
@@ -829,7 +900,7 @@ function exportCSV(dataAlvo){
     +'<div class="card"><div class="cl">Não devolvidas</div><div class="cv p">'+pendentes+'</div></div>'
     +'</div>'
     +'<table><thead><tr>'
-    +'<th>Chave</th><th>Descrição</th><th>Responsável</th><th>Retirada</th><th>Devolução</th>'
+    +'<th>Chave</th><th>Descrição</th><th>Responsável</th><th>Retirada</th><th>Devolução</th><th>Transferências</th>'
     +'</tr></thead><tbody>'+linhas+'</tbody></table>'
     +'<div class="footer"><span>'+org+' — Claviculário Digital</span>'
     +'<span>Relatório de '+todayStrShort+' gerado às '+geradoEm+'</span></div>'
