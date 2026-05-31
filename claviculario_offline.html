@@ -101,6 +101,27 @@ button:hover{background:var(--surface2);border-color:var(--border2)}
 .toast.show{transform:translateY(0);opacity:1}
 
 
+/* CALENDÁRIO */
+.cal-modal{width:380px!important;max-width:96vw!important}
+.cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.cal-nav button{padding:5px 12px;font-size:12px;font-family:var(--font);font-weight:500;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer}
+.cal-nav button:hover{background:var(--surface2)}
+.cal-month{font-size:13px;font-weight:600;color:var(--text);text-transform:capitalize}
+.cal-table{width:100%;border-collapse:collapse;margin-bottom:8px;table-layout:fixed}
+.cal-table th{font-size:10px;font-weight:600;color:var(--text3);text-align:center;padding:4px 0;text-transform:uppercase;width:calc(100%/7)}
+.cal-table td{text-align:center;padding:2px}
+.cal-cell{display:inline-flex;align-items:center;justify-content:center;width:36px;height:32px;border-radius:6px;font-size:12px;cursor:pointer;border:1px solid transparent;transition:all .12s;color:var(--text);font-weight:400;margin:0 auto}
+.cal-cell:hover{background:var(--surface2);border-color:var(--border)}
+.cal-cell.has-data{font-weight:700;background:var(--accent-light);color:var(--accent)}
+.cal-cell.has-data:hover{background:#c8ddd4}
+.cal-cell.today{border-color:var(--accent);font-weight:700}
+.cal-cell.selected{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important}
+.cal-cell.no-data{color:var(--text3);opacity:.35;cursor:not-allowed;pointer-events:none}
+.cal-legend{display:flex;gap:12px;margin-bottom:10px;font-size:10px;color:var(--text3)}
+.cal-legend span{display:flex;align-items:center;gap:4px}
+.cal-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+.cal-selbox{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 12px;font-size:12px;color:var(--text2);margin-bottom:.75rem}
+
 /* TURNO */
 .hpill-turno{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.25);cursor:pointer}
 .hpill-turno:hover{background:rgba(255,255,255,.28)}
@@ -192,8 +213,8 @@ button:hover{background:var(--surface2);border-color:var(--border2)}
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
     Histórico
   </button>
-  <button class="btn-a" onclick="exportCSV()">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+  <button class="btn-a" onclick="openCalendario()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
     Relatório do dia
   </button>
   <button onclick="exportCompleto()">
@@ -617,9 +638,113 @@ function clearAll(){
   toast('Dados zerados');
 }
 
+
+// ── CALENDÁRIO DE RELATÓRIO ───────────────────────────────
+let calYear = new Date().getFullYear();
+let calMonth = new Date().getMonth();
+let calSelected = null;
+
+function openCalendario(){
+  calYear = new Date().getFullYear();
+  calMonth = new Date().getMonth();
+  calSelected = null;
+  renderCalModal();
+}
+
+function renderCalModal(){
+  const m = document.getElementById('modal-body');
+  m.classList.add('cal-modal');
+
+  // Dias com dados
+  const diasComDados = new Set();
+  log.forEach(l=>{
+    const d=new Date(l.time);
+    diasComDados.add(d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate());
+  });
+
+  const hoje = new Date();
+  const nomeMes = new Date(calYear,calMonth,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+  const primeiroDia = new Date(calYear,calMonth,1).getDay();
+  const ultimoDia = new Date(calYear,calMonth+1,0).getDate();
+  const dows = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+  // Montar semanas em linhas de tabela
+  let dias = [];
+  for(let i=0;i<primeiroDia;i++) dias.push(null);
+  for(let d=1;d<=ultimoDia;d++) dias.push(d);
+  while(dias.length%7!==0) dias.push(null);
+
+  let linhas='';
+  for(let s=0;s<dias.length;s+=7){
+    linhas+='<tr>';
+    for(let col=0;col<7;col++){
+      const d=dias[s+col];
+      if(!d){ linhas+='<td></td>'; continue; }
+      const dataKey=calYear+'-'+calMonth+'-'+d;
+      const isHoje=d===hoje.getDate()&&calMonth===hoje.getMonth()&&calYear===hoje.getFullYear();
+      const temDados=diasComDados.has(dataKey);
+      const isFuturo=new Date(calYear,calMonth,d)>hoje;
+      const isSel=calSelected&&calSelected.d===d&&calSelected.m===calMonth&&calSelected.y===calYear;
+      let cls='cal-cell';
+      if(isSel) cls+=' selected';
+      else if(isFuturo) cls+=' no-data';
+      else if(temDados) cls+=' has-data';
+      if(isHoje&&!isSel) cls+=' today';
+      const click=isFuturo?'':'onclick="selectCalDay('+d+','+calMonth+','+calYear+')"';
+      linhas+='<td><div class="'+cls+'" '+click+'>'+d+'</div></td>';
+    }
+    linhas+='</tr>';
+  }
+
+  const ths=dows.map(d=>'<th>'+d+'</th>').join('');
+  const selLabel=calSelected
+    ?new Date(calSelected.y,calSelected.m,calSelected.d).toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})
+    :'Nenhum dia selecionado';
+
+  m.innerHTML=
+    '<div class="mh2"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Escolher data do relatório</div>'
+    +'<div class="msub">Selecione o dia para gerar o PDF</div>'
+    +'<div class="cal-nav">'
+    +'<button onclick="calNavegar(-1)">‹ Anterior</button>'
+    +'<span class="cal-month">'+nomeMes+'</span>'
+    +'<button onclick="calNavegar(1)">Próximo ›</button>'
+    +'</div>'
+    +'<table class="cal-table"><thead><tr>'+ths+'</tr></thead><tbody>'+linhas+'</tbody></table>'
+    +'<div class="cal-legend">'
+    +'<span><div class="cal-dot" style="background:var(--accent-light);border:1px solid #b8d4c4"></div>Com movimentações</span>'
+    +'<span><div class="cal-dot" style="border:2px solid var(--accent)"></div>Hoje</span>'
+    +'</div>'
+    +'<div class="cal-selbox">📅 <b>Selecionado:</b> '+selLabel+'</div>'
+    +'<div class="mact">'
+    +'<button onclick="closeModal()">Cancelar</button>'
+    +'<button class="btn-a" id="cal-ok" onclick="gerarRelatorioDia()" '+(calSelected?'':'disabled')+'>Gerar PDF</button>'
+    +'</div>';
+
+  document.getElementById('overlay').classList.add('open');
+}
+
+function calNavegar(dir){
+  calMonth += dir;
+  if(calMonth < 0){ calMonth=11; calYear--; }
+  if(calMonth > 11){ calMonth=0; calYear++; }
+  renderCalModal();
+}
+
+function selectCalDay(d,m,y){
+  calSelected = {d,m,y};
+  renderCalModal();
+}
+
+function gerarRelatorioDia(){
+  if(!calSelected) return;
+  const {d,m,y} = calSelected;
+  closeModal();
+  exportCSV(new Date(y,m,d));
+}
+
 // ── EXPORT PDF ───────────────────────────────────────────
-function exportCSV(){
-  const today = new Date();
+function exportCSV(dataAlvo){
+  const today = dataAlvo || new Date();
   const todayStr = today.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
   const todayStrShort = today.toLocaleDateString('pt-BR');
   const geradoEm = today.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
@@ -741,7 +866,7 @@ function exportCompleto(){
 
 // ── MISC ─────────────────────────────────────────────────
 function setFilter(v){document.getElementById('filter').value=v;renderGrid();}
-function closeModal(){document.getElementById('overlay').classList.remove('open');}
+function closeModal(){document.getElementById('overlay').classList.remove('open');document.getElementById('modal-body').classList.remove('cal-modal');}
 function toast(msg){
   const t=document.getElementById('toast');
   t.textContent=msg;t.classList.add('show');
