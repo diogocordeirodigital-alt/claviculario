@@ -53,27 +53,27 @@ button:hover{background:var(--surface2);border-color:var(--border2)}
 .kc:hover{border-color:var(--border2);transform:translateY(-1px)}
 .kc:active{transform:scale(.97)}
 .kc.taken{background:var(--danger-bg);border-color:var(--danger-b)}
-.kc.alert{background:var(--warn-bg);border-color:var(--warn-b);animation:pulse 2.5s ease-in-out infinite}
-@keyframes pulse{0%,100%{border-color:var(--warn-b)}50%{border-color:#c8a040}}
+.kc.alert{background:#fde8e8;border-color:#c0392b;animation:pulse 2.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{border-color:#c0392b}50%{border-color:#e74c3c}}
 .kicon{font-size:15px;margin-bottom:3px;line-height:1}
 .knum{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--text)}
 .kc.taken .knum{color:var(--danger)}
-.kc.alert .knum{color:var(--warn)}
+.kc.alert .knum{color:#c0392b;font-weight:700}
 .kname{font-size:8.5px;color:var(--text3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .kc.taken .kname{color:var(--danger);opacity:.8}
-.kc.alert .kname{color:var(--warn);opacity:.8}
+.kc.alert .kname{color:#c0392b;opacity:.9}
 
 /* PANEL */
 .panel{background:var(--surface);border-top:1px solid var(--border);padding:1.25rem 1.5rem}
 .ptitle{font-size:12px;font-weight:600;color:var(--text2);letter-spacing:.04em;text-transform:uppercase;margin-bottom:.875rem;display:flex;align-items:center;gap:7px}
 .litem{border:1px solid var(--border);border-radius:8px;padding:9px 12px;display:flex;align-items:center;gap:10px;font-size:13px;background:var(--surface2);margin-bottom:5px}
-.litem.wi{background:var(--warn-bg);border-color:var(--warn-b)}
+.litem.wi{background:#fde8e8;border-color:#c0392b}
 .lnum{font-family:var(--mono);font-weight:600;font-size:13px;min-width:28px;color:var(--text)}
 .linfo{flex:1;min-width:0}
 .lname{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ltime{font-size:11px;color:var(--text3);margin-top:1px}
 .lelapsed{font-size:11px;font-weight:600;padding:2px 7px;border-radius:4px;border:1px solid var(--border);background:var(--surface);color:var(--text2);white-space:nowrap;flex-shrink:0}
-.lelapsed.w{background:var(--warn-bg);border-color:var(--warn-b);color:var(--warn)}
+.lelapsed.w{background:#fde8e8;border-color:#c0392b;color:#c0392b;font-weight:700}
 .empty{text-align:center;padding:1.75rem;color:var(--text3);font-size:13px}
 
 /* MODAL */
@@ -137,6 +137,21 @@ button:hover{background:var(--surface2);border-color:var(--border2)}
 .turno-banner .tb-since{font-size:11px;opacity:.75;margin-left:4px}
 .turno-banner .tb-btn{margin-left:auto;padding:4px 12px;font-size:12px;font-family:var(--font);font-weight:600;border:1px solid var(--accent);border-radius:6px;background:transparent;color:var(--accent);cursor:pointer}
 .turno-banner .tb-btn:hover{background:var(--accent);color:#fff}
+
+/* FECHAR PONTO */
+.btn-ponto{background:#7a1a1a;color:#fff;border-color:#7a1a1a}
+.btn-ponto:hover{background:#5a1010;border-color:#5a1010}
+.ponto-item{border:1px solid var(--border);border-radius:8px;padding:9px 13px;margin-bottom:6px;display:flex;align-items:center;gap:10px;font-size:13px;background:var(--surface2)}
+.ponto-item .pi-num{font-family:var(--mono);font-weight:700;min-width:28px;color:var(--danger)}
+.ponto-item .pi-info{flex:1}
+.ponto-item .pi-name{font-weight:500}
+.ponto-item .pi-time{font-size:11px;color:var(--text3)}
+.ponto-motivo{margin-top:8px}
+.ponto-motivo label{display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:5px}
+.radio-group{display:flex;flex-direction:column;gap:5px}
+.radio-opt{display:flex;align-items:center;gap:7px;font-size:13px;cursor:pointer;padding:5px 0}
+.radio-opt input[type=radio]{cursor:pointer;width:15px;height:15px;accent-color:var(--accent)}
+.outro-input{margin-top:6px;display:none}
 
 /* MULTI-SELECT */
 .kc.selected{border-color:var(--accent);background:var(--accent-light);box-shadow:0 0 0 2px var(--accent)}
@@ -230,6 +245,10 @@ button:hover{background:var(--surface2);border-color:var(--border2)}
   <button id="btn-multi" onclick="toggleMulti()">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
     Selecionar várias
+  </button>
+  <button class="btn-ponto" onclick="openFecharPonto()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/><line x1="19.07" y1="4.93" x2="4.93" y2="19.07"/></svg>
+    Fechar ponto
   </button>
   <button onclick="openConfig()">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 0 0 4.93 19.07M19.07 4.93l-2.83 2.83M4.93 19.07l2.83-2.83"/></svg>
@@ -333,7 +352,7 @@ function renderGrid(){
     if(f!=='all'&&f!==s)continue;
     if(q&&!String(i).includes(q)&&!(k.person||'').toLowerCase().includes(q)&&!(k.label||'').toLowerCase().includes(q))continue;
     count++;
-    const ic=s==='available'?'🔑':s==='alert'?'⚠️':'🔒';
+    const ic=s==='available'?'🔑':s==='alert'?'🔴':'🔒';
     const nm=s==='available'?'livre':(k.person||'—');
     html+=`<div class="kc ${s}" onclick="openKey(${i})" title="${k.label} — ${nm}">
       <div class="kicon">${ic}</div>
@@ -378,6 +397,98 @@ function renderActiveLog(){
   c.innerHTML=html;
 }
 
+
+
+// ── FECHAR PONTO ─────────────────────────────────────────
+function openFecharPonto(){
+  // Encontrar chaves ainda em uso
+  const pendentes=[];
+  for(let i=1;i<=80;i++) if(keys[i].status==='taken') pendentes.push(i);
+
+  const m=document.getElementById('modal-body');
+
+  if(!pendentes.length){
+    // Nenhuma pendente — apenas confirma fechamento
+    m.innerHTML='<div class="mh2">✅ Fechar Ponto</div>'
+      +'<div class="msub">Todas as chaves foram devolvidas.</div>'
+      +'<div style="background:var(--ok-bg);border:1px solid var(--ok-b);border-radius:8px;padding:12px 14px;font-size:13px;color:var(--ok);margin-bottom:1rem">'
+      +'✔ Nenhuma chave pendente. Bom descanso!</div>'
+      +'<div class="mact">'
+      +'<button onclick="closeModal()">Cancelar</button>'
+      +'<button class="btn-a" onclick="doFecharPonto([])">Confirmar fechamento</button>'
+      +'</div>';
+  } else {
+    let itens=pendentes.map(i=>{
+      const k=keys[i];
+      const el=elap(k.takenAt);
+      return `<div class="ponto-item">
+        <div class="pi-num">#${pad(i)}</div>
+        <div class="pi-info">
+          <div class="pi-name">${k.person||'—'}</div>
+          <div class="pi-time">${fdt(k.takenAt)}${el?' · '+el:''}</div>
+        </div>
+      </div>
+      <div class="ponto-motivo">
+        <label>Motivo da não devolução — Chave #${pad(i)}</label>
+        <div class="radio-group">
+          <label class="radio-opt">
+            <input type="radio" name="motivo_${i}" value="porteiro_noite" checked onchange="toggleOutro(${i})">
+            Entregue para o porteiro da noite
+          </label>
+          <label class="radio-opt">
+            <input type="radio" name="motivo_${i}" value="outro" onchange="toggleOutro(${i})">
+            Outro motivo
+          </label>
+        </div>
+        <div class="outro-input" id="outro_${i}">
+          <input type="text" id="outro_txt_${i}" placeholder="Descreva o motivo..." style="margin-top:4px;padding:7px 10px;border-radius:7px">
+        </div>
+      </div>
+      <hr style="border:none;border-top:1px solid var(--border);margin:10px 0">`;
+    }).join('');
+
+    m.innerHTML='<div class="mh2">🕐 Fechar Ponto</div>'
+      +'<div class="msub">'+pendentes.length+' chave'+(pendentes.length>1?'s':'')+' não devolvida'+(pendentes.length>1?'s':'')+'. Informe o motivo:</div>'
+      +'<div style="max-height:380px;overflow-y:auto;margin-bottom:1rem">'+itens+'</div>'
+      +'<div class="mact">'
+      +'<button onclick="closeModal()">Cancelar</button>'
+      +'<button class="btn-ponto" onclick="doFecharPonto('+JSON.stringify(pendentes)+')">Registrar e fechar ponto</button>'
+      +'</div>';
+  }
+  document.getElementById('overlay').classList.add('open');
+}
+
+function toggleOutro(i){
+  const sel=document.querySelector(`input[name="motivo_${i}"]:checked`);
+  const div=document.getElementById('outro_'+i);
+  if(div) div.style.display=sel&&sel.value==='outro'?'block':'none';
+}
+
+function doFecharPonto(pendentes){
+  const agora=Date.now();
+  const obs=[];
+
+  pendentes.forEach(i=>{
+    const sel=document.querySelector(`input[name="motivo_${i}"]:checked`);
+    let motivo='Entregue para o porteiro da noite';
+    if(sel&&sel.value==='outro'){
+      const txt=(document.getElementById('outro_txt_'+i)||{}).value||'';
+      motivo=txt||'Outro motivo (sem descrição)';
+    }
+    // Registrar observação no log
+    log.unshift({key:i,person:keys[i].person,action:'obs_ponto',motivo,time:agora});
+    obs.push({key:i,person:keys[i].person,motivo});
+  });
+
+  // Encerrar turno
+  if(turno.porteiro&&turno.historico.length) turno.historico[0].ate=agora;
+  const porteiroCopy=turno.porteiro;
+  turno.porteiro='';turno.desde=null;
+  // Registrar fechamento
+  log.unshift({action:'ponto_fechado',porteiro:porteiroCopy,pendentes:obs,time:agora});
+  save();render();closeModal();
+  toast('Ponto fechado — '+(pendentes.length?pendentes.length+' chave(s) com observação':'todas devolvidas')+' ✓');
+}
 
 // ── TURNO / PONTO ────────────────────────────────────────
 function updateTurnoUI(){
@@ -545,7 +656,7 @@ function openKey(i){
       </div>`;
   } else {
     const el=elap(k.takenAt),isA=s==='alert';
-    const ab=isA?`<div class="abox">⚠️ Esta chave está fora há mais de ${ALERT_H} horas! Verificar com <b>${k.person}</b>.</div>`:'';
+    const ab=isA?`<div class="abox" style="background:#fde8e8;border-color:#c0392b;color:#c0392b">🔴 Esta chave está fora há mais de ${ALERT_H} horas! Verificar com <b>${k.person}</b>.</div>`:'';
     // Histórico de transferências desta chave hoje
     const hoje = new Date(); hoje.setHours(0,0,0,0);
     const transfers = log.filter(l=>l.key===i&&l.action==='transfer'&&new Date(l.time)>=hoje);
@@ -828,6 +939,12 @@ function exportCSV(dataAlvo){
     }
   });
   Object.values(taken).forEach(l=>{ pairs.push({key:l.key,person:l.person,takenAt:l.time,returnedAt:null,transfers:transfersMap[l.key]||[]}); });
+  // Coletar observações de fechamento de ponto (busca no log completo pelo dia)
+  const obsMap={};
+  log.filter(l=>l.action==='obs_ponto'&&new Date(l.time)>=startOfDay&&new Date(l.time)<=endOfDay)
+     .forEach(l=>{ obsMap[l.key]=l.motivo; });
+  // Info de fechamento de ponto do dia
+  const pontFechado=log.find(l=>l.action==='ponto_fechado'&&new Date(l.time)>=startOfDay&&new Date(l.time)<=endOfDay);
   pairs.sort((a,b)=>a.takenAt-b.takenAt);
 
   if(!pairs.length){ toast('Nenhuma movimentação registrada hoje'); return; }
@@ -845,12 +962,20 @@ function exportCSV(dataAlvo){
     const bg = idx%2===0 ? '#f9f8f6' : '#ffffff';
     const retStyle = isPendente ? 'color:#8b2c2c;font-weight:600' : 'color:#2d5c3a;font-weight:600';
     const pendBadge = isPendente ? ' <span style="font-size:9px;background:#fdf0f0;border:1px solid #e8c4c4;border-radius:3px;padding:1px 5px;color:#8b2c2c;margin-left:4px">PENDENTE</span>' : '';
-    // Observações de transferência
-    const hasTransfer = p.transfers && p.transfers.length>0;
+    // Transferências — só exibe na última movimentação pendente ou na que contém aquela transferência
+    // Filtra apenas transferências que ocorreram ENTRE a retirada e a devolução desta movimentação
+    const movFim = p.returnedAt || Date.now();
+    const transfersDaMov = (p.transfers||[]).filter(t => t.time >= p.takenAt && t.time <= movFim);
+    const hasTransfer = transfersDaMov.length > 0;
     const obsTransfer = hasTransfer
-      ? p.transfers.map(t=>'🔄 '+new Date(t.time).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+' — '+t.de+' → '+t.para+(t.obs?' ('+t.obs+')':'')).join('<br>')
+      ? transfersDaMov.map(t=>'🔄 '+new Date(t.time).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+' — '+t.de+' → '+t.para+(t.obs?' ('+t.obs+')':'')).join('<br>')
       : '—';
-    const responsavelFinal = hasTransfer ? p.transfers[p.transfers.length-1].para : p.person;
+    const responsavelFinal = hasTransfer ? transfersDaMov[transfersDaMov.length-1].para : p.person;
+    // Observação de fechamento de ponto — só exibe se esta movimentação está pendente
+    const obsPonto = isPendente ? (obsMap[p.key] || '') : '';
+    const obsPontoCell = obsPonto
+      ? '<span style="color:#8b2c2c;font-weight:600">⚠️ '+obsPonto+'</span>'
+      : '—';
     return '<tr style="background:'+bg+'">'
       +'<td style="text-align:center;font-weight:700;font-family:monospace">'+String(p.key).padStart(2,'0')+'</td>'
       +'<td>'+label+'</td>'
@@ -858,6 +983,7 @@ function exportCSV(dataAlvo){
       +'<td style="text-align:center;font-family:monospace">'+tak+'</td>'
       +'<td style="text-align:center;font-family:monospace;'+retStyle+'">'+ret+pendBadge+'</td>'
       +'<td style="font-size:10px;color:#7a5c1a">'+obsTransfer+'</td>'
+      +'<td style="font-size:11px">'+obsPontoCell+'</td>'
       +'</tr>';
   }).join('');
 
@@ -900,7 +1026,7 @@ function exportCSV(dataAlvo){
     +'<div class="card"><div class="cl">Não devolvidas</div><div class="cv p">'+pendentes+'</div></div>'
     +'</div>'
     +'<table><thead><tr>'
-    +'<th>Chave</th><th>Descrição</th><th>Responsável</th><th>Retirada</th><th>Devolução</th><th>Transferências</th>'
+    +'<th>Chave</th><th>Descrição</th><th>Responsável</th><th>Retirada</th><th>Devolução</th><th>Transferências</th><th>Obs. Ponto</th>'
     +'</tr></thead><tbody>'+linhas+'</tbody></table>'
     +'<div class="footer"><span>'+org+' — Claviculário Digital</span>'
     +'<span>Relatório de '+todayStrShort+' gerado às '+geradoEm+'</span></div>'
