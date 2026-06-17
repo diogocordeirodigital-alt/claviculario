@@ -303,6 +303,54 @@ function load() {
     if (raw) { const d=JSON.parse(raw); keys=d.keys||{}; log=d.log||[]; if(d.cfg) cfg=Object.assign(cfg,d.cfg); if(d.turno) turno=Object.assign(turno,d.turno); }
   } catch(e){}
   for (let i=1;i<=80;i++) if(!keys[i]) keys[i]={status:'available',person:'',takenAt:null,label:'Chave '+i};
+
+  // ── VIRADA DE DIA: zera estado das chaves se for um novo dia ──
+  const hoje = new Date().toLocaleDateString('pt-BR');
+  const ultimoDia = cfg.ultimoDia || null;
+
+  if (ultimoDia && ultimoDia !== hoje) {
+    // Registrar no log as chaves que ainda estavam fora ao virar o dia
+    const viradaTs = (() => {
+      const d = new Date(); d.setHours(0,0,0,0); return d.getTime();
+    })();
+
+    let chavesAbertas = 0;
+    for (let i=1;i<=80;i++) {
+      if (keys[i].status === 'taken') {
+        // Registrar encerramento automático no log
+        log.unshift({
+          key: i,
+          person: keys[i].person,
+          action: 'auto_encerrado',
+          motivo: 'Virada de dia — ' + ultimoDia,
+          time: viradaTs
+        });
+        // Resetar chave
+        keys[i] = {status:'available', person:'', takenAt:null, label:keys[i].label};
+        chavesAbertas++;
+      }
+    }
+
+    // Encerrar turno se estiver aberto
+    if (turno.porteiro && turno.historico.length) {
+      turno.historico[0].ate = viradaTs;
+      turno.porteiro = '';
+      turno.desde = null;
+    }
+
+    if (chavesAbertas > 0) {
+      // Registrar evento de virada
+      log.unshift({
+        action: 'virada_dia',
+        dia: ultimoDia,
+        chavesAbertas,
+        time: viradaTs
+      });
+    }
+  }
+
+  // Atualizar o dia atual
+  cfg.ultimoDia = hoje;
 }
 function save() {
   try { localStorage.setItem(SK,JSON.stringify({keys,log,cfg,turno})); } catch(e){}
@@ -752,9 +800,11 @@ function openHistory(){
   const r=log.slice(0,80);
   let rows=r.map(l=>{
     const isTransfer=l.action==='transfer';
-    const dotColor=isTransfer?'background:#c8a040':l.action==='taken'?'background:var(--danger)':'background:var(--ok)';
-    const label=isTransfer?'Transferência':'taken'===l.action?'Retirada':'Devolução';
-    const info=isTransfer?`<b>${l.de}</b> → <b>${l.para}</b>${l.obs?' · '+l.obs:''}`:(l.person);
+    const isAuto=l.action==='auto_encerrado';
+    const isVirada=l.action==='virada_dia';
+    const dotColor=isTransfer?'background:#c8a040':isAuto||isVirada?'background:#888':l.action==='taken'?'background:var(--danger)':'background:var(--ok)';
+    const label=isTransfer?'Transferência':isAuto?'Enc. automático':isVirada?'Virada de dia':'taken'===l.action?'Retirada':'Devolução';
+    const info=isVirada?`Virada de dia (${l.dia}) — ${l.chavesAbertas} chave(s) abertas`:isAuto?`${l.person} · ${l.motivo}`:(isTransfer?`<b>${l.de}</b> → <b>${l.para}</b>${l.obs?' · '+l.obs:''}`:l.person);
     return `<div class="hist-item">
       <div class="hdot" style="${dotColor}"></div>
       <div>
@@ -921,7 +971,7 @@ function exportCSV(dataAlvo){
   const startOfDay = new Date(today); startOfDay.setHours(0,0,0,0);
   const endOfDay   = new Date(today); endOfDay.setHours(23,59,59,999);
 
-  const logsToday = log.filter(l=>{ const d=new Date(l.time); return d>=startOfDay&&d<=endOfDay; });
+  const logsToday = log.filter(l=>{ const d=new Date(l.time); return d>=startOfDay&&d<=endOfDay&&l.action!=='virada_dia'; });
 
   const pairs = [];
   const taken = {};
@@ -934,11 +984,15 @@ function exportCSV(dataAlvo){
       transfersMap[l.key].push(l);
     }
     else if(l.action==='returned'&&taken[l.key]){
-      pairs.push({key:l.key,person:taken[l.key].person,takenAt:taken[l.key].time,returnedAt:l.time,transfers:transfersMap[l.key]||[]});
+      pairs.push({key:l.key,person:taken[l.key].person,takenAt:taken[l.key].time,returnedAt:l.time,transfers:transfersMap[l.key]||[],autoEncerrado:false});
+      delete taken[l.key];
+    }
+    else if(l.action==='auto_encerrado'&&taken[l.key]){
+      pairs.push({key:l.key,person:taken[l.key].person,takenAt:taken[l.key].time,returnedAt:l.time,transfers:transfersMap[l.key]||[],autoEncerrado:true});
       delete taken[l.key];
     }
   });
-  Object.values(taken).forEach(l=>{ pairs.push({key:l.key,person:l.person,takenAt:l.time,returnedAt:null,transfers:transfersMap[l.key]||[]}); });
+  Object.values(taken).forEach(l=>{ pairs.push({key:l.key,person:l.person,takenAt:l.time,returnedAt:null,transfers:transfersMap[l.key]||[],autoEncerrado:false}); });
   // Coletar observações de fechamento de ponto (busca no log completo pelo dia)
   const obsMap={};
   log.filter(l=>l.action==='obs_ponto'&&new Date(l.time)>=startOfDay&&new Date(l.time)<=endOfDay)
@@ -959,9 +1013,14 @@ function exportCSV(dataAlvo){
     const tak = new Date(p.takenAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
     const ret = p.returnedAt ? new Date(p.returnedAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '—';
     const isPendente = !p.returnedAt;
+    const isAuto = p.autoEncerrado === true;
     const bg = idx%2===0 ? '#f9f8f6' : '#ffffff';
-    const retStyle = isPendente ? 'color:#8b2c2c;font-weight:600' : 'color:#2d5c3a;font-weight:600';
-    const pendBadge = isPendente ? ' <span style="font-size:9px;background:#fdf0f0;border:1px solid #e8c4c4;border-radius:3px;padding:1px 5px;color:#8b2c2c;margin-left:4px">PENDENTE</span>' : '';
+    const retStyle = isPendente ? 'color:#8b2c2c;font-weight:600' : isAuto ? 'color:#7a5c1a;font-weight:600' : 'color:#2d5c3a;font-weight:600';
+    const pendBadge = isPendente
+      ? ' <span style="font-size:9px;background:#fdf0f0;border:1px solid #e8c4c4;border-radius:3px;padding:1px 5px;color:#8b2c2c;margin-left:4px">PENDENTE</span>'
+      : isAuto
+      ? ' <span style="font-size:9px;background:#fdf6e8;border:1px solid #e8d8a0;border-radius:3px;padding:1px 5px;color:#7a5c1a;margin-left:4px">VIRADA DO DIA</span>'
+      : '';
     // Transferências — só exibe na última movimentação pendente ou na que contém aquela transferência
     // Filtra apenas transferências que ocorreram ENTRE a retirada e a devolução desta movimentação
     const movFim = p.returnedAt || Date.now();
@@ -1022,8 +1081,13 @@ function exportCSV(dataAlvo){
     +'<div class="resumo">'
     +'<div class="card" style="background:#e8f0ec;border-color:#b8d4c4"><div class="cl" style="color:#2d4a3e">Porteiro de plantão</div><div style="font-size:15px;font-weight:700;color:#2d4a3e;margin-top:2px">'+(turno.porteiro||'Não registrado')+'</div></div>'
     +'<div class="card"><div class="cl">Total do dia</div><div class="cv t">'+total+'</div></div>'
-    +'<div class="card"><div class="cl">Devolvidas</div><div class="cv ok">'+devolvidas+'</div></div>'
-    +'<div class="card"><div class="cl">Não devolvidas</div><div class="cv p">'+pendentes+'</div></div>'
+    +(()=>{
+      const autoEnc=pairs.filter(p=>p.autoEncerrado).length;
+      const devNorm=pairs.filter(p=>p.returnedAt&&!p.autoEncerrado).length;
+      return '<div class="card"><div class="cl">Devolvidas</div><div class="cv ok">'+devNorm+'</div></div>'
+        +(autoEnc?'<div class="card" style="background:#fdf6e8;border-color:#e8d8a0"><div class="cl" style="color:#7a5c1a">Virada do dia</div><div class="cv" style="color:#7a5c1a">'+autoEnc+'</div></div>':'')
+        +(pendentes?'<div class="card"><div class="cl">Não devolvidas</div><div class="cv p">'+pendentes+'</div></div>':'');
+    })()
     +'</div>'
     +'<table><thead><tr>'
     +'<th>Chave</th><th>Descrição</th><th>Responsável</th><th>Retirada</th><th>Devolução</th><th>Transferências</th><th>Obs. Ponto</th>'
@@ -1073,8 +1137,17 @@ function render(){renderGrid();renderActiveLog();updateStats();updateTurnoUI();}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 
 // ── INIT ─────────────────────────────────────────────────
-load();render();
-setInterval(()=>{updateStats();renderGrid();renderActiveLog();},60000);
+load();save();render();
+setInterval(()=>{
+  // Verifica virada de dia a cada minuto
+  const hoje = new Date().toLocaleDateString('pt-BR');
+  if (cfg.ultimoDia && cfg.ultimoDia !== hoje) {
+    load(); save(); render();
+    toast('Novo dia iniciado — claviculário resetado ✓');
+    return;
+  }
+  updateStats(); renderGrid(); renderActiveLog();
+}, 60000);
 </script>
 </body>
 </html>
